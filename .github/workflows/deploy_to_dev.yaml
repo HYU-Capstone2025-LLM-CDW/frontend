@@ -18,7 +18,7 @@ jobs:
       - name: Pull and Run Container
         run: |
           IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:${{ secrets.DOCKER_TAG || 'latest' }}
-          CONTAINER_NAME=backend-app-container
+          CONTAINER_NAME=frontend-app-container
 
           docker stop $CONTAINER_NAME || true
           docker rm $CONTAINER_NAME || true
