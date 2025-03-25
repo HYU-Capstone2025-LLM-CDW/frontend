@@ -25,7 +25,7 @@ jobs:
           docker pull $IMAGE
 
           docker run --env-file ${{ secrets.DOCKER_IMAGE_NAME }}.env \
-            -d --restart always --name $CONTAINER_NAME -p 8000:8000 $IMAGE
+            -d --restart always --name $CONTAINER_NAME -p 3000:3000 $IMAGE
 
       - name: Remove .env file
         run: rm ${{ secrets.DOCKER_IMAGE_NAME }}.env
