@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>CDW 데이터 시각화</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-gl/dist/echarts-gl.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        #chart { width: 80%; height: 500px; margin: 20px auto; }
+        table { margin: auto; border-collapse: collapse; width: 80%; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        button, select { margin: 5px; padding: 10px; }
+
+        #axisControl {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            margin-left: 10%;
+        }
+        #axisLabels {
+            margin: 10px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+<h1>CDW 데이터 시각화</h1>
+
+<textarea id="queryInput" rows="4" cols="80" placeholder="SQL 쿼리를 입력하세요."></textarea><br>
+<button onclick="executeQuery()">쿼리 실행</button>
+
+<div id="axisControl">
+    <div id="axisLabels">
+        <h3>🔹 그래프 축 선택</h3>
+        <label for="xAxisSelect">X축:</label>
+        <select id="xAxisSelect"></select>
+
+        <label for="yAxisSelect">Y축:</label>
+        <select id="yAxisSelect"></select>
+
+        <label for="zAxisSelect" style="display:none;">Z축:</label>
+        <select id="zAxisSelect" style="display:none;"></select>
+    </div>
+
+    <div id="dataLimit" style="margin-left: 40px;">
+        <h3>🔹 상위 데이터 개수</h3>
+        <label for="rowLimitSelect">개수 선택:</label>
+        <select id="rowLimitSelect" onchange="applyRowLimit()">
+            <option value="10">10개</option>
+            <option value="20">20개</option>
+            <option value="50">50개</option>
+            <option value="100">100개</option>
+            <option value="all" selected>전체</option>
+        </select>
+    </div>
+</div>
+
+<h3>📊 원하는 시각화 선택:</h3>
+<button onclick="renderBarChart()">막대 그래프 (X, Y)</button>
+<button onclick="renderLineChart()">선 그래프 (X, Y)</button>
+<button onclick="renderPieChart()">파이 차트 (X: 범주, Y: 값)</button>
+<button onclick="renderScatterChart()">산점도 차트 (X, Y)</button>
+<button onclick="renderBar3DChart()">3D 막대 그래프 (X, Y, Z)</button>
+<button onclick="renderTable()">테이블 보기</button>
+
+<div id="chart"></div>
+<div id="tableArea"></div>
+
+<script>
+    let globalData = [];
+    let filteredData = [];
+    let columnNames = [];
+    let currentChart = null;
+    let currentChartType = null;
+
+    function executeQuery() {
+        const sql = $("#queryInput").val();
+        currentChartType = 'table';
+        fetch('/api/execute-query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sql: sql })
+        })
+            .then(response => response.json())
+            .then(data => {
+                globalData = data.data.map(row => {
+                    let cleanedRow = {};
+                    for (let key in row) {
+                        cleanedRow[key] = row[key] !== null ? row[key] : "N/A";
+                    }
+                    return cleanedRow;
+                });
+
+                if (globalData.length === 0) {
+                    alert('조회된 데이터가 없습니다.');
+                } else {
+                    columnNames = Object.keys(globalData[0]);
+                    applyRowLimit();
+                    updateAxisSelection();
+                }
+            })
+            .catch(error => console.error('쿼리 실행 오류:', error));
+    }
+
+    function applyRowLimit() {
+        const limit = $("#rowLimitSelect").val();
+        if (limit === "all") {
+            filteredData = globalData;
+        } else {
+            filteredData = globalData.slice(0, Number(limit));
+        }
+
+        if (!currentChart) {
+            renderTable();
+        }
+        else if(currentChartType === 'pie') {
+            renderPieChart();
+        }
+        else if(currentChartType === 'table') {
+            renderTable();
+        }
+        else if(currentChartType === 'bar3D') {
+            renderBar3DChart()
+        }
+        else {
+            renderChart(currentChartType);
+        }
+    }
+
+    function updateAxisSelection() {
+        let xSelect = $("#xAxisSelect").empty();
+        let ySelect = $("#yAxisSelect").empty();
+        let zSelect = $("#zAxisSelect").empty();
+
+        let validColumns = columnNames.filter(col => {
+            return filteredData.every(row => row[col] !== "N/A");
+        })
+
+        validColumns.forEach(col => {
+            xSelect.append(new Option(col, col));
+            ySelect.append(new Option(col, col));
+            zSelect.append(new Option(col, col));
+        });
+
+    }
+
+    function renderTable() {
+        if (currentChart) currentChart.dispose();
+        currentChartType = 'table';
+        $("#chart").hide();
+        $("#zAxisSelect").hide();
+        $("label[for='zAxisSelect']").hide();
+
+        let validColumns = columnNames.filter(key => {
+            return filteredData.some(row => row[key] !== 'N/A');
+        })
+
+        let html = "<table><tr>";
+
+        validColumns.forEach(key => html += `<th>${key}</th>`);
+        html += "</tr>";
+
+        filteredData.forEach(row => {
+            html += "<tr>";
+            validColumns.forEach(key => {
+                if (row[key] !== 'N/A') {
+                    html += `<td>${row[key]}</td>`;
+                }
+            });
+            html += "</tr>";
+        });
+        html += "</table>";
+        $("#tableArea").html(html).show();
+    }
+
+    function renderChart(type) {
+        if (!filteredData.length) return alert('먼저 쿼리를 실행하세요.');
+        $("#tableArea").hide();
+        $("#chart").show();
+        $("#zAxisSelect").hide();
+        $("label[for='zAxisSelect']").hide();
+
+        if (currentChart) currentChart.dispose();
+        currentChart = echarts.init(document.getElementById('chart'));
+        currentChartType = type;
+
+        let x = $("#xAxisSelect").val();
+        let y = $("#yAxisSelect").val();
+        let xData = filteredData.map(row => row[x]);
+        let yData = filteredData.map(row => isNaN(row[y]) ? 0 : Number(row[y]));
+
+        currentChart.setOption({
+            title: { text: `${type} 그래프`, left: 'center' },
+            xAxis: { type: 'category', data: xData },
+            yAxis: { type: 'value' },
+            tooltip: {},
+            series: [{ type: type, data: yData }]
+        });
+    }
+
+    function renderBarChart() { renderChart('bar'); }
+    function renderLineChart() { renderChart('line'); }
+    function renderScatterChart() { renderChart('scatter'); }
+
+    function renderPieChart() {
+        if (!filteredData.length) return alert('먼저 쿼리를 실행하세요.');
+        $("#tableArea").hide();
+        $("#chart").show();
+        $("#zAxisSelect").hide();
+        $("label[for='zAxisSelect']").hide();
+
+        if (currentChart) currentChart.dispose();
+        currentChart = echarts.init(document.getElementById('chart'));
+        currentChartType = 'pie';
+
+        let x = $("#xAxisSelect").val();
+        let y = $("#yAxisSelect").val();
+
+        let data = filteredData.map(row => ({
+            name: `${x}: ${row[x]}`,
+            value: isNaN(row[y]) ? 0 : Number(row[y])
+        }));
+
+        currentChart.setOption({
+            title: { text: '파이 차트', left: 'center' },
+            tooltip: { trigger: 'item' },
+            legend: { orient: 'vertical', left: 'left' },
+            series: [{
+                type: 'pie',
+                radius: '50%',
+                data: data
+            }]
+        });
+    }
+
+    function renderBar3DChart() {
+        if (!filteredData.length) return alert('먼저 쿼리를 실행하세요.');
+        $("#tableArea").hide();
+        $("#chart").show();
+        $("#zAxisSelect").show();
+        $("label[for='zAxisSelect']").show();
+
+        if (currentChart) currentChart.dispose();
+        currentChart = echarts.init(document.getElementById('chart'));
+        currentChartType = 'bar3D';
+
+        let x = $("#xAxisSelect").val();
+        let y = $("#yAxisSelect").val();
+        let z = $("#zAxisSelect").val();
+
+        let data = filteredData.map(row => [
+            row[x], row[y], isNaN(row[z]) ? 0 : Number(row[z])
+        ]);
+
+        currentChart.setOption({
+            tooltip: {},
+            title: { text: '3D 막대그래프', left: 'center' },
+            xAxis3D: { type: 'category', name: x },
+            yAxis3D: { type: 'category', name: y },
+            zAxis3D: { type: 'value', name: z },
+            grid3D: { boxWidth: 100, boxDepth: 80, viewControl: { projection: 'orthographic' } },
+            series: [{
+                type: 'bar3D',
+                data: data.map(item => ({ value: item })),
+                shading: 'lambert',
+                label: { show: false },
+                emphasis: {
+                    label: { show: true, fontSize: 12, color: '#fff' },
+                    itemStyle: { color: '#900' }
+                }
+            }]
+        });
+    }
+
+</script>
+</body>
+</html>
+
