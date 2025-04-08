@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BarChart3, LineChart, PieChart } from "lucide-react";
+import 'echarts-gl';
 import * as echarts from "echarts";
 
 interface ChartRow {
@@ -84,6 +84,9 @@ export default function Page() {
     const renderChart = (type: string) => {
         if (!chartRef.current || !filteredData.length) return;
 
+        if (echarts.getInstanceByDom(chartRef.current)) {
+            echarts.dispose(chartRef.current);
+        }
         const chart = echarts.init(chartRef.current);
         setCurrentChartType(type);
 
@@ -271,43 +274,57 @@ export default function Page() {
                         ))}
                     </select>
                 </div>
+
+                {/* 데이터 수 제한 입력 */}
+                <div className="m-4 text-left">
+                    <h3 className="font-semibold">🔹 상위 데이터 개수</h3>
+                    <label htmlFor="rowLimitInput">개수 입력: </label>
+                    <input
+                        type="number"
+                        id="rowLimitInput"
+                        min={1}
+                        value={limit || ""}
+                        onChange={(e) => {
+                            const value = parseInt(e.target.value);
+                            setLimit(isNaN(value) ? undefined : value);
+                        }}
+                        className="border rounded px-3 py-1 ml-2"
+                        placeholder="숫자 입력"
+                    />
+                    <button
+                        className="ml-2 bg-gray-300 px-2 py-1 rounded hover:bg-gray-400"
+                        onClick={fetchChartData}
+                    >
+                    </button>
+                    <span className="ml-4 text-gray-500">
+                      총 {globalData.length}개 데이터 조회됨
+                    </span>
+                </div>
             </div>
 
-            {/* 데이터 수 제한 입력 */}
-            <div className="mb-4 ml-4">
-                <h3 className="font-semibold">🔹 상위 데이터 개수</h3>
-                <label htmlFor="rowLimitInput">개수 입력: </label>
-                <input
-                    type="number"
-                    id="rowLimitInput"
-                    min={1}
-                    value={limit || ""}
-                    onChange={(e) => {
-                        const value = parseInt(e.target.value);
-                        setLimit(isNaN(value) ? undefined : value);
-                    }}
-                    className="border rounded px-3 py-1 ml-2"
-                    placeholder="숫자 입력"
-                />
-                <button
-                    className="ml-2 bg-gray-300 px-2 py-1 rounded hover:bg-gray-400"
-                    onClick={fetchChartData}
-                >
-                </button>
-                <span className="ml-4 text-gray-500">
-                  총 {globalData.length}개 데이터 조회됨
-                </span>
-            </div>
 
 
-            <h3 className="text-xl mt-6">📊 원하는 시각화 선택:</h3>
+
+            <h3 className="font-semibold">📊 원하는 시각화 선택:</h3>
             <div className="flex justify-center flex-wrap gap-4 mt-2">
-                <ChartButton label={<BarChart3 className="w-5 h-5" />} onClick={() => renderChart("bar")} />
-                <ChartButton label={<LineChart className="w-5 h-5" />} onClick={() => renderChart("line")} />
-                <ChartButton label="산점도 그래프 (X, Y)" icon="scatter" onClick={() => renderChart("scatter")} />
-                <ChartButton label="3D 막대 그래프 (X, Y, Z)" icon="3d-bar-chart" onClick={() => renderChart("bar3D")} />
-                <ChartButton label="파이 차트 (X, Y)" icon="pie-chart" onClick={() => renderChart("pie")} />
-                <ChartButton label="테이블 보기" icon="table" onClick={() => renderTable(filteredData)} />
+                <ChartButton label={
+                    <img src="/images/bar.png" alt="Bar Chart" />
+                } onClick={() => renderChart("bar")} />
+                <ChartButton label={
+                    <img src="/images/line.png" alt="Line Chart" />
+                } onClick={() => renderChart("line")} />
+                <ChartButton label={
+                    <img src="/images/scatter.png" alt="Scatter Chart" />
+                } onClick={() => renderChart("scatter")} />
+                <ChartButton label={
+                    <img src="/images/3dbar.png" alt="bar3D Chart" />
+                } onClick={() => renderChart("bar3D")} />
+                <ChartButton label={
+                    <img src="/images/pie.png" alt="pie Chart" />
+                }onClick={() => renderChart("pie")} />
+                <ChartButton label={
+                    <img src="/images/table.png" alt="Scatter Chart" />
+                } onClick={() => renderTable(filteredData)} />
             </div>
 
             <div ref={chartRef} id="chart" className="w-4/5 h-[500px] mx-auto my-4" />
@@ -315,17 +332,12 @@ export default function Page() {
     );
 }
 
-function ChartButton({ label, icon, onClick }: { label: string; icon: string; onClick: () => void }) {
+function ChartButton({ label, onClick }: { label: string; icon: string; onClick: () => void }) {
     return (
         <button
             onClick={onClick}
-            className="flex items-center gap-2 px-4 py-2 border rounded bg-gray-100 hover:bg-gray-200 active:bg-gray-300"
+            className="flex items-center justify-center w-20 h-20 border rounded-2xl shadow-md text-6xl hover:bg-gray-100 transition"
         >
-            <img
-                src={`https://cdn.iconscout.com/icon/premium/png-512-thumb/${icon}.png?f=webp&w=512`}
-                alt=""
-                className="w-6 h-6"
-            />
             {label}
         </button>
     );
