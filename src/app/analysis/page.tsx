@@ -237,6 +237,30 @@ export default function Page() {
         link.click();
     };
 
+    const downloadCSV = () => {
+        if (!filteredData.length) {
+            alert("다운로드할 데이터가 없습니다.");
+            return;
+        }
+
+        const header = Object.keys(filteredData[0]);
+        const rows = filteredData.map(row =>
+            header.map(h => `"${String(row[h] ?? "")}"`).join(",")
+        );
+        const csvContent = [header.join(","), ...rows].join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "table.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+
     useEffect(() => {
         if (!currentChartType || currentChartType === "table") return;
         renderChart(currentChartType);
@@ -355,7 +379,7 @@ export default function Page() {
                     그래프 다운로드
                 </button>
                 <button
-                    onClick={downloadChartImage}
+                    onClick={downloadCSV}
                     className="px-4 py-2 text-white rounded"
                     style={{ backgroundColor: 'rgb(0, 188, 212)' }}
                 >
