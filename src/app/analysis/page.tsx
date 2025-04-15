@@ -23,6 +23,7 @@ export default function Page() {
     const fetchChartData = async () => {
         try {
             setCurrentChartType("table");
+
             const response = await fetch("/api/chart-data", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -45,18 +46,26 @@ export default function Page() {
                 return;
             }
 
+            // ✅ 새 쿼리 실행 시 상태 초기화
+            setXAxis("");
+            setYAxis("");
+            setZAxis("");
+            setLimit(undefined);
+
             setGlobalData(cleanedData);
             setColumnNames(
                 Object.keys(cleanedData[0]).filter(key =>
                     cleanedData.some(row => row[key] !== "N/A")
                 )
             );
+
             setCurrentChartType("table");
-            renderTable(cleanedData);
         } catch (error) {
             console.error("Error:", error);
         }
     };
+
+
 
     const filteredData = limit ? globalData.slice(0, limit) : globalData;
 
@@ -77,6 +86,13 @@ export default function Page() {
             count: values.length,
         };
     };
+
+    useEffect(() => {
+        if (currentChartType === "table" && globalData.length > 0) {
+            renderTable(limit ? globalData.slice(0, limit) : globalData);
+        }
+    }, [globalData, limit, currentChartType]);
+
 
     const renderTable = (data: ChartRow[]) => {
         if (!chartRef.current) return;
@@ -205,6 +221,22 @@ export default function Page() {
         }
     };
 
+    // 다운로드 기능 추가
+    const downloadChartImage = () => {
+        const chartDom = document.getElementById("chart");
+        if (!chartDom) return;
+        const instance = echarts.getInstanceByDom(chartDom);
+        if (!instance) {
+            alert("그래프가 먼저 생성되어야 합니다.");
+            return;
+        }
+        const base64 = instance.getDataURL({ type: "png", pixelRatio: 2 });
+        const link = document.createElement("a");
+        link.href = base64;
+        link.download = "chart.png";
+        link.click();
+    };
+
     useEffect(() => {
         if (!currentChartType || currentChartType === "table") return;
         renderChart(currentChartType);
@@ -271,7 +303,7 @@ export default function Page() {
                                 ))}
                             </select>
                             {hoveredAxis === axis && value && (
-                                <div className="absolute left-full ml-2 top-0">
+                                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-10">
                                     {renderSummaryTooltip(value)}
                                 </div>
                             )}
@@ -307,12 +339,29 @@ export default function Page() {
                 <ChartButton label={<img src="/images/bar.png" alt="Bar Chart" />} onClick={() => renderChart("bar")} />
                 <ChartButton label={<img src="/images/line.png" alt="Line Chart" />} onClick={() => renderChart("line")} />
                 <ChartButton label={<img src="/images/scatter.png" alt="Scatter Chart" />} onClick={() => renderChart("scatter")} />
-                <ChartButton label={<img src="/images/bar.png" alt="bar3D Chart" />} onClick={() => renderChart("bar3D")} />
+                <ChartButton label={<img src="/images/3dbar.png" alt="bar3D Chart" />} onClick={() => renderChart("bar3D")} />
                 <ChartButton label={<img src="/images/pie.png" alt="pie Chart" />} onClick={() => renderChart("pie")} />
                 <ChartButton label={<img src="/images/table.png" alt="Table Chart" />} onClick={() => renderTable(filteredData)} />
             </div>
 
-            <div ref={chartRef} id="chart" className="w-4/5 h-[500px] mx-auto my-4" />
+            <div ref={chartRef} id="chart" className="relative w-4/5 h-[500px] mx-auto my-4" />
+            {/* 다운로드 버튼 우상단 고정 */}
+            <div className="absolute top-4 right-6 flex flex-row gap-2 z-20">
+                <button
+                    onClick={downloadChartImage}
+                    className="px-4 py-2 text-white rounded"
+                    style={{ backgroundColor: 'rgb(0, 188, 212)' }}
+                >
+                    그래프 다운로드
+                </button>
+                <button
+                    onClick={downloadChartImage}
+                    className="px-4 py-2 text-white rounded"
+                    style={{ backgroundColor: 'rgb(0, 188, 212)' }}
+                >
+                    테이블 CSV 다운로드
+                </button>
+            </div>
         </div>
     );
 }
