@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Home, BarChart2, Users, FolderPlus, Settings, LucideIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Home, BarChart2, Users, FolderPlus, Settings, LucideIcon, MessageSquare } from "lucide-react";
 import { useState } from "react";
 
 interface MenuItem {
@@ -14,12 +15,14 @@ const menuItems: MenuItem[] = [
     { href: "/", icon: Home, text: "홈" },
     { href: "/analysis", icon: BarChart2, text: "데이터 분석" },
     { href: "/patients", icon: Users, text: "환자 관리" },
-    { href: "/cohorts", icon: FolderPlus, text: "코호트 관리" },
+    { href: "/cohort-result", icon: FolderPlus, text: "코호트 결과" }, // ✅ 경로 + 이름 수정
+    { href: "/ai-chat", icon: MessageSquare, text: "AI 챗봇" },
     { href: "/settings", icon: Settings, text: "설정" },
 ];
 
 export default function Sidebar() {
     const [isOpen, setIsOpen] = useState(false);
+    const pathname = usePathname(); // 현재 경로 확인
 
     return (
         <>
@@ -35,7 +38,14 @@ export default function Sidebar() {
                     <ul>
                         {menuItems.map((item, index) => (
                             <li key={index} className="mb-2">
-                                <Link href={item.href} className="flex items-center text-white hover:bg-gray-700 px-4 py-2 rounded">
+                                <Link
+                                    href={item.href}
+                                    className={`flex items-center px-4 py-2 rounded ${
+                                        pathname === item.href
+                                            ? "bg-gray-800 font-semibold"
+                                            : "hover:bg-gray-700"
+                                    }`}
+                                >
                                     <item.icon className="mr-2" size={20} />
                                     <span>{item.text}</span>
                                 </Link>

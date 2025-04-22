@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from "@/components/layout/Layout";
 import BarChart from "@/components/charts/BarChart";
 import LineChart from "@/components/charts/LineChart";
@@ -28,9 +28,18 @@ export default function AnalysisPage() {
     const chartTypeOptions = ['bar_chart', 'line_chart', 'pie_chart', 'scatter_chart', 'bar3d_chart'];
     const rowLimitOptions = ['10', '20', '50', '100', 'all'];
 
-    const fetchCustomData = async () => {
+    useEffect(() => {
+        const autoSql = sessionStorage.getItem("custom_sql");
+        if (autoSql) {
+            setCustomSql(autoSql);
+            sessionStorage.removeItem("custom_sql");
+            fetchCustomData(autoSql);
+        }
+    }, []);
+
+    const fetchCustomData = async (sqlQuery?: string) => {
         try {
-            const limitedSql = customSql;
+            const limitedSql = sqlQuery || customSql;
             const res = await fetch('/api/chart-data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -96,15 +105,15 @@ export default function AnalysisPage() {
     return (
         <Layout>
             <div className="mb-4">
-        <textarea
-            className="w-full p-2 border rounded"
-            rows={4}
-            value={customSql}
-            onChange={(e) => setCustomSql(e.target.value)}
-            placeholder="SQL 쿼리를 입력하세요"
-        />
+                <textarea
+                    className="w-full p-2 border rounded"
+                    rows={4}
+                    value={customSql}
+                    onChange={(e) => setCustomSql(e.target.value)}
+                    placeholder="SQL 쿼리를 입력하세요"
+                />
                 <div className="mt-2 flex gap-4">
-                    <button onClick={fetchCustomData} className="btn">쿼리 실행</button>
+                    <button onClick={() => fetchCustomData()} className="btn">쿼리 실행</button>
                     <div>
                         <label className="mr-2 font-medium">행 개수 제한:</label>
                         <select value={rowLimit} onChange={(e) => setRowLimit(e.target.value)} className="border p-2 rounded">
