@@ -1,175 +1,350 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import Layout from "@/components/layout/Layout";
-import BarChart from "@/components/charts/BarChart";
-import LineChart from "@/components/charts/LineChart";
-import PieChart from "@/components/charts/PieChart";
-import ScatterChart from "@/components/charts/ScatterChart";
-import DataTable from "@/components/charts/DataTable";
-import Bar3DChart from "@/components/charts/Bar3dChart";
+import { useEffect, useRef, useState } from "react";
+import 'echarts-gl';
+import * as echarts from "echarts";
 
 interface ChartRow {
-    [key: string]: string | number | null;
+    [key: string]: string | number;
 }
 
 export default function AnalysisPage() {
-    const [customSql, setCustomSql] = useState('SELECT gender_concept_id, COUNT(*) AS value FROM cdmdatabaseschema."person" GROUP BY gender_concept_id');
-    const [chartData, setChartData] = useState<ChartRow[]>([]);
+    const chartRef = useRef<HTMLDivElement>(null);
+    const [sql, setSql] = useState("");
+    const [xAxis, setXAxis] = useState("");
+    const [yAxis, setYAxis] = useState("");
+    const [zAxis, setZAxis] = useState("");
+    const [limit, setLimit] = useState<number | undefined>(undefined);
+    const [globalData, setGlobalData] = useState<ChartRow[]>([]);
     const [columnNames, setColumnNames] = useState<string[]>([]);
-    const [xAxis, setXAxis] = useState('');
-    const [yAxis, setYAxis] = useState('');
-    const [zAxis, setZAxis] = useState('');
-    const [chartType, setChartType] = useState('bar_chart');
-    const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
-    const [rowLimit, setRowLimit] = useState('all');
-    const [errorMessage, setErrorMessage] = useState('');
+    const [currentChartType, setCurrentChartType] = useState<string | null>(null);
+    const [hoveredAxis, setHoveredAxis] = useState<string | null>(null);
 
-    const chartTypeOptions = ['bar_chart', 'line_chart', 'pie_chart', 'scatter_chart', 'bar3d_chart'];
-    const rowLimitOptions = ['10', '20', '50', '100', 'all'];
+    const fetchChartData = async (customQuery?: string) => {
+        try {
+            const queryToRun = customQuery || sql;
+            setCurrentChartType("table");
+
+            const response = await fetch("/api/chart-data", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sql: queryToRun }),
+            });
+
+            if (!response.ok) throw new Error("쿼리 요청 실패");
+            const result = await response.json();
+
+            const cleanedData = result.data.map((row: any) => {
+                const cleanedRow: ChartRow = {};
+                for (const key in row) {
+                    cleanedRow[key] = row[key] !== null ? row[key] : "N/A";
+                }
+                return cleanedRow;
+            });
+
+            if (cleanedData.length === 0) {
+                alert("조회된 데이터가 없습니다.");
+                return;
+            }
+
+            // 새 쿼리 실행시 상태 초기화
+            setXAxis("");
+            setYAxis("");
+            setZAxis("");
+            setLimit(undefined);
+
+            setGlobalData(cleanedData);
+            setColumnNames(
+                Object.keys(cleanedData[0]).filter(key =>
+                    cleanedData.some(row => row[key] !== "N/A")
+                )
+            );
+
+            setCurrentChartType("table");
+        } catch (error) {
+            console.error("Error:", error);
+        }
+    };
 
     useEffect(() => {
-        const autoSql = sessionStorage.getItem("custom_sql");
-        if (autoSql) {
-            setCustomSql(autoSql);
+        const stored = sessionStorage.getItem("custom_sql");
+        if (stored) {
+            setSql(stored);
+            fetchChartData(stored);
             sessionStorage.removeItem("custom_sql");
-            fetchCustomData(autoSql);
         }
     }, []);
 
-    const fetchCustomData = async (sqlQuery?: string) => {
-        try {
-            const limitedSql = sqlQuery || customSql;
-            const res = await fetch('/api/chart-data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sql: limitedSql }),
+    const filteredData = limit ? globalData.slice(0, limit) : globalData;
+
+    const calculateSummary = (col: string) => {
+        const values = filteredData.map(row => Number(row[col])).filter(val => !isNaN(val));
+        if (values.length === 0) return null;
+
+        const sorted = [...values].sort((a, b) => a - b);
+        const median = sorted.length % 2 === 0
+            ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+            : sorted[Math.floor(sorted.length / 2)];
+
+        return {
+            mean: values.reduce((a, b) => a + b, 0) / values.length,
+            median,
+            max: Math.max(...values),
+            min: Math.min(...values),
+            count: values.length,
+        };
+    };
+
+    useEffect(() => {
+        if (currentChartType === "table" && globalData.length > 0) {
+            renderTable(filteredData);
+        }
+    }, [globalData, limit, currentChartType]);
+
+    const renderTable = (data: ChartRow[]) => {
+        if (!chartRef.current) return;
+        const validColumns = columnNames.filter((key) => data.some((row) => row[key] !== "N/A"));
+
+        const tableHtml = `
+            <table class="w-full border">
+                <thead>
+                    <tr>${validColumns.map((key) => `<th class='border px-2 py-1'>${key}</th>`).join("")}</tr>
+                </thead>
+                <tbody>
+                    ${data.map(row => `<tr>${validColumns.map(key => `<td class='border px-2 py-1'>${row[key]}</td>`).join("")}</tr>`).join("")}
+                </tbody>
+            </table>
+        `;
+
+        chartRef.current.innerHTML = tableHtml;
+    };
+
+    const renderChart = (type: string) => {
+        if (!chartRef.current || !filteredData.length) return;
+        if (echarts.getInstanceByDom(chartRef.current)) {
+            echarts.dispose(chartRef.current);
+        }
+
+        const chart = echarts.init(chartRef.current);
+        setCurrentChartType(type);
+
+        if (type === "bar3D") {
+            const data = filteredData.map(row => [row[xAxis], row[yAxis], isNaN(Number(row[zAxis])) ? 0 : Number(row[zAxis])]);
+            chart.setOption({
+                tooltip: {
+                    formatter: (params: any) => `${xAxis}: ${params.value[0]}<br>${yAxis}: ${params.value[1]}<br>${zAxis}: ${params.value[2]}`,
+                },
+                title: { text: "3D bar 그래프", left: "center" },
+                xAxis3D: { type: "category", name: xAxis },
+                yAxis3D: { type: "category", name: yAxis },
+                zAxis3D: { type: "value", name: zAxis },
+                grid3D: { boxWidth: 100, boxDepth: 80, viewControl: { projection: "orthographic", autoRotate: true } },
+                series: [{ type: "bar3D", data: data.map(item => ({ value: item })) }]
             });
+        } else if (type === "pie") {
+            const pieData = filteredData.map(row => ({
+                name: row[xAxis],
+                value: isNaN(Number(row[yAxis])) ? 0 : Number(row[yAxis]),
+            }));
 
-            const json = await res.json();
-            const parsed = JSON.parse(json.message);
+            chart.setOption({
+                title: { text: "pie 차트", left: "center" },
+                tooltip: { trigger: "item", formatter: "{a} <br/>{b} : {c} ({d}%)" },
+                series: [{
+                    name: yAxis,
+                    type: "pie",
+                    radius: "55%",
+                    center: ["50%", "50%"],
+                    data: pieData
+                }]
+            });
+        } else {
+            const xData = filteredData.map(row => row[xAxis]);
+            const yData = filteredData.map(row => isNaN(Number(row[yAxis])) ? 0 : Number(row[yAxis]));
 
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                setChartData(parsed);
-                const columns = Object.keys(parsed[0]);
-                setColumnNames(columns);
-                setXAxis(columns[0]);
-                setYAxis(columns[1] || columns[0]);
-                setZAxis(columns[2] || columns[0]);
-                setErrorMessage('');
-            } else {
-                setChartData([]);
-                setErrorMessage('📭 결과가 비어있습니다.');
-            }
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : '알 수 없는 오류';
-            console.error('쿼리 실행 오류:', message);
-            setChartData([]);
-            setErrorMessage('❌ 데이터를 불러오지 못했습니다.');
+            chart.setOption({
+                title: { text: `${type} 그래프`, left: "center" },
+                xAxis: { type: "category", data: xData, name: xAxis },
+                yAxis: { type: "value", name: yAxis },
+                tooltip: { trigger: "axis" },
+                series: [{ type, data: yData }]
+            });
         }
     };
 
-    const renderChartComponent = () => {
-        const limitedData = rowLimit === 'all' ? chartData : chartData.slice(0, Number(rowLimit));
-
-        switch (chartType) {
-            case 'bar_chart':
-                return <BarChart data={limitedData} xKey={xAxis} yKey={yAxis} />;
-            case 'line_chart':
-                return <LineChart data={limitedData} xKey={xAxis} yKey={yAxis} />;
-            case 'pie_chart':
-                return <PieChart data={limitedData} nameKey={xAxis} valueKey={yAxis} />;
-            case 'scatter_chart':
-                return <ScatterChart data={limitedData} xKey={xAxis} yKey={yAxis} />;
-            case 'bar3d_chart': {
-                if (!xAxis || !yAxis || !zAxis) {
-                    return <p className="text-red-600 font-medium">❌ 3D 차트를 그릴 수 있는 데이터가 충분하지 않습니다.</p>;
-                }
-
-                const converted3DData = limitedData.filter(
-                    (d): d is { x: string | number; y: string | number; z: number } =>
-                        'x' in d && 'y' in d && 'z' in d && typeof d.z === 'number'
-                );
-
-                if (converted3DData.length === 0) {
-                    return <p className="text-red-600 font-medium">❌ 유효한 3D 데이터가 없어 차트를 표시할 수 없습니다.</p>;
-                }
-
-                return <Bar3DChart data={converted3DData} zKey={zAxis} />;
-            }
-            default:
-                return <p>지원하지 않는 차트 유형입니다.</p>;
+    const downloadChartImage = () => {
+        const chartDom = document.getElementById("chart");
+        if (!chartDom) return;
+        const instance = echarts.getInstanceByDom(chartDom);
+        if (!instance) {
+            alert("그래프가 먼저 생성되어야 합니다.");
+            return;
         }
+        const base64 = instance.getDataURL({ type: "png", pixelRatio: 2 });
+        const link = document.createElement("a");
+        link.href = base64;
+        link.download = "chart.png";
+        link.click();
+    };
+
+    const downloadCSV = () => {
+        if (!filteredData.length) {
+            alert("다운로드할 데이터가 없습니다.");
+            return;
+        }
+
+        const header = Object.keys(filteredData[0]);
+        const rows = filteredData.map(row =>
+            header.map(h => `"${String(row[h] ?? "")}"`).join(",")
+        );
+        const csvContent = [header.join(","), ...rows].join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "table.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    useEffect(() => {
+        if (!currentChartType || currentChartType === "table") return;
+        renderChart(currentChartType);
+    }, [xAxis, yAxis, zAxis, limit]);
+
+    const renderSummaryTooltip = (col: string) => {
+        const summary = calculateSummary(col);
+        if (!summary) return null;
+        return (
+            <div className="absolute z-10 bg-white border p-2 rounded-md text-sm shadow-lg">
+                <p><strong>{col} 요약</strong></p>
+                <p>개수: {summary.count}</p>
+                <p>평균: {summary.mean.toFixed(2)}</p>
+                <p>중앙값: {summary.median}</p>
+                <p>최댓값: {summary.max}</p>
+                <p>최솟값: {summary.min}</p>
+            </div>
+        );
     };
 
     return (
-        <Layout>
-            <div className="mb-4">
+        <div className="font-sans text-center">
+            <h1 className="text-3xl font-bold mt-6">CDW 데이터 시각화</h1>
+
+            <div className="w-4/5 mx-auto my-4 flex flex-col items-end bg-white p-4 rounded-lg">
                 <textarea
-                    className="w-full p-2 border rounded"
                     rows={4}
-                    value={customSql}
-                    onChange={(e) => setCustomSql(e.target.value)}
-                    placeholder="SQL 쿼리를 입력하세요"
+                    placeholder="SQL 쿼리를 입력하세요."
+                    className="w-full mb-2 border rounded p-2"
+                    value={sql}
+                    onChange={(e) => setSql(e.target.value)}
                 />
-                <div className="mt-2 flex gap-4">
-                    <button onClick={() => fetchCustomData()} className="btn">쿼리 실행</button>
-                    <div>
-                        <label className="mr-2 font-medium">행 개수 제한:</label>
-                        <select value={rowLimit} onChange={(e) => setRowLimit(e.target.value)} className="border p-2 rounded">
-                            {rowLimitOptions.map(limit => (
-                                <option key={limit} value={limit}>{limit === 'all' ? '전체' : `${limit}개`}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
+                <button
+                    onClick={() => fetchChartData()}
+                    className="px-4 py-2 border rounded bg-gray-100 hover:bg-gray-200 active:bg-gray-300"
+                >
+                    쿼리 실행
+                </button>
             </div>
 
-            {chartData.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <div>
-                        <label className="block mb-1 font-medium">X축</label>
-                        <select value={xAxis} onChange={(e) => setXAxis(e.target.value)} className="w-full border p-2 rounded">
-                            {columnNames.map(col => <option key={col} value={col}>{col}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block mb-1 font-medium">Y축</label>
-                        <select value={yAxis} onChange={(e) => setYAxis(e.target.value)} className="w-full border p-2 rounded">
-                            {columnNames.map(col => <option key={col} value={col}>{col}</option>)}
-                        </select>
-                    </div>
-                    {chartType === 'bar3d_chart' && (
-                        <div>
-                            <label className="block mb-1 font-medium">Z축</label>
-                            <select value={zAxis} onChange={(e) => setZAxis(e.target.value)} className="w-full border p-2 rounded">
-                                {columnNames.map(col => <option key={col} value={col}>{col}</option>)}
+            <div className="flex justify-center gap-4 flex-wrap">
+                {['xAxis', 'yAxis', currentChartType === 'bar3D' ? 'zAxis' : null].filter(Boolean).map(axis => {
+                    const value = axis === 'xAxis' ? xAxis : axis === 'yAxis' ? yAxis : zAxis;
+                    return (
+                        <div
+                            key={axis}
+                            className="relative"
+                            onMouseEnter={() => setHoveredAxis(axis!)}
+                            onMouseLeave={() => setHoveredAxis(null)}
+                        >
+                            <select
+                                value={value}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (axis === 'xAxis') setXAxis(val);
+                                    else if (axis === 'yAxis') setYAxis(val);
+                                    else setZAxis(val);
+                                }}
+                                className="border rounded px-3 py-2"
+                            >
+                                <option value="">{axis?.charAt(0)}축 선택</option>
+                                {columnNames.map((name) => (
+                                    <option key={name} value={name}>{name}</option>
+                                ))}
                             </select>
+                            {hoveredAxis === axis && value && (
+                                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-10">
+                                    {renderSummaryTooltip(value)}
+                                </div>
+                            )}
                         </div>
-                    )}
-                    <div>
-                        <label className="block mb-1 font-medium">차트 종류</label>
-                        <select value={chartType} onChange={(e) => setChartType(e.target.value)} className="w-full border p-2 rounded">
-                            {chartTypeOptions.map(type => <option key={type} value={type}>{type}</option>)}
-                        </select>
-                    </div>
+                    );
+                })}
+            </div>
+
+            <div className="my-6 flex justify-center">
+                <div className="text-left">
+                    <h3 className="font-semibold">🔹 상위 데이터 개수</h3>
+                    <input
+                        type="number"
+                        min={1}
+                        value={limit || ""}
+                        onChange={(e) => {
+                            const value = parseInt(e.target.value);
+                            setLimit(isNaN(value) ? undefined : value);
+                        }}
+                        className="border rounded px-3 py-1 ml-2"
+                        placeholder="숫자 입력"
+                    />
+                    <span className="ml-4 text-gray-500">
+                        총 {globalData.length}개 데이터 조회됨
+                    </span>
                 </div>
-            )}
-
-            <div className="flex gap-2 mb-4">
-                <button onClick={() => setViewMode('chart')} className="btn">차트 보기</button>
-                <button onClick={() => setViewMode('table')} className="btn">테이블 보기</button>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow">
-                {errorMessage ? (
-                    <p className="text-red-600 font-medium">{errorMessage}</p>
-                ) : viewMode === 'table' ? (
-                    <DataTable data={rowLimit === 'all' ? chartData : chartData.slice(0, Number(rowLimit))} />
-                ) : (
-                    renderChartComponent()
-                )}
+            <h3 className="font-semibold">📊 원하는 시각화 선택:</h3>
+            <div className="flex justify-center flex-wrap gap-4 mt-2">
+                <ChartButton label={<img src="/images/bar.png" alt="Bar Chart" />} onClick={() => renderChart("bar")} />
+                <ChartButton label={<img src="/images/line.png" alt="Line Chart" />} onClick={() => renderChart("line")} />
+                <ChartButton label={<img src="/images/scatter.png" alt="Scatter Chart" />} onClick={() => renderChart("scatter")} />
+                <ChartButton label={<img src="/images/bar.png" alt="bar3D Chart" />} onClick={() => renderChart("bar3D")} />
+                <ChartButton label={<img src="/images/pie.png" alt="pie Chart" />} onClick={() => renderChart("pie")} />
+                <ChartButton label={<img src="/images/table.png" alt="Table Chart" />} onClick={() => renderTable(filteredData)} />
             </div>
-        </Layout>
+
+            <div ref={chartRef} id="chart" className="relative w-4/5 h-[500px] mx-auto my-4" />
+
+            {/* 다운로드 버튼 */}
+            <div className="absolute top-4 right-6 flex flex-row gap-2 z-20">
+                <button
+                    onClick={downloadChartImage}
+                    className="px-4 py-2 text-white rounded"
+                    style={{ backgroundColor: 'rgb(0, 188, 212)' }}
+                >
+                    그래프 다운로드
+                </button>
+                <button
+                    onClick={downloadCSV}
+                    className="px-4 py-2 text-white rounded"
+                    style={{ backgroundColor: 'rgb(0, 188, 212)' }}
+                >
+                    테이블 CSV 다운로드
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function ChartButton({ label, onClick }: { label: React.ReactNode; onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            className="flex items-center justify-center w-20 h-20 border rounded-2xl shadow-md text-6xl hover:bg-gray-100 transition"
+        >
+            {label}
+        </button>
     );
 }
