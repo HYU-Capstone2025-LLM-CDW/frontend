@@ -9,8 +9,9 @@ interface ChatMessage {
 }
 
 function extractSQL(text: string): string | null {
-    const codeBlockMatch = text.match(/```(?:sql)?\s*([\s\S]*?)```/i);
-    return codeBlockMatch ? codeBlockMatch[1].trim() : null;
+    // SELECT ~ FROM ~ ; 로 끝나는 첫 SQL 구문 추출
+    const match = text.match(/(select[\s\S]+?from[\s\S]+?;)/i);
+    return match ? match[1].trim() : null;
 }
 
 export default function AiChatPage() {
@@ -41,6 +42,7 @@ export default function AiChatPage() {
             body: JSON.stringify({ question: input }),
         });
         const data = await response.json();
+        console.log("🔍 응답 데이터:", JSON.stringify(data.debug, null, 2));
         const botMessageText = data.answer || "❌ 답변을 받지 못했습니다.";
 
         const botMessage: ChatMessage = {
@@ -53,6 +55,7 @@ export default function AiChatPage() {
         sessionStorage.setItem("chat_history", JSON.stringify(finalHistory));
 
         const extracted = extractSQL(botMessageText);
+        console.log(extracted);
         if (extracted) {
             const updatedSql = { ...sqlPerMessage, [finalHistory.length - 1]: extracted };
             setSqlPerMessage(updatedSql);
@@ -89,8 +92,7 @@ export default function AiChatPage() {
                     >
                         <strong>{chat.role === "user" ? "👤 나" : "🤖 GPT"}</strong>
                         <div className="mt-1">{chat.message}</div>
-
-                        {chat.role === "bot" && sqlPerMessage[idx] && (
+                        {chat.role === "bot" /*&& sqlPerMessage[idx]*/ && (
                             <div className="mt-3 flex gap-3">
                                 <button
                                     onClick={() => handleRoute("analysis", sqlPerMessage[idx])}
