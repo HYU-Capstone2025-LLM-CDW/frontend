@@ -4,7 +4,7 @@ export async function POST(req: NextRequest) {
     const { question } = await req.json();
 
     try {
-        const duckdnsRes = await fetch("https://api-hyu.duckdns.org/sql-generator/", {
+        const duckdnsRes = await fetch(process.env.NEXT_PUBLIC_OPEN_API+"/sql-generator/", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
