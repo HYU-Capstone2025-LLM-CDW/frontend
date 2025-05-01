@@ -56,7 +56,7 @@ export default function AnalysisPage() {
             setGlobalData(cleanedData);
             setColumnNames(
                 Object.keys(cleanedData[0]).filter(key =>
-                    cleanedData.some(row => row[key] !== "N/A")
+                    cleanedData.some((row: any) => row[key] !== "N/A")
                 )
             );
 

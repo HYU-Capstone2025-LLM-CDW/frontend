@@ -75,3 +75,5 @@ export default function CohortResultPage() {
         </div>
     );
 }
+
+export const dynamic = "force-dynamic";
