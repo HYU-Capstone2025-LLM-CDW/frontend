@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import pool from 'lib/db';
+import {db} from '@/lib/db';
 
 type Data =
     | { data: any[] }
@@ -21,7 +21,7 @@ export default async function handler(
   }
 
   try {
-    const client = await pool.connect();
+    const client = await db.connect();
     const result = await client.query(sql);
     client.release();
     return res.status(200).json({ data: result.rows });  // ✅ 바로 rows만 넘김

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";  // 꼭 bcryptjs
-import { db } from "lib/db";   // db Pool 연결
+import { db } from "@/lib/db";   // db Pool 연결
 
 export async function POST(req: Request) {
   try {

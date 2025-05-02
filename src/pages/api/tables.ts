@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import pool from '../../../lib/db'
+import pool from '../../lib/db'
 
 interface TableRow {
   table_name: string;
