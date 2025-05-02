@@ -13,11 +13,22 @@ export default function HomePage() {
                     <p className="mt-4 text-lg sm:text-xl text-gray-600 mb-8">
                         환자 데이터 분석 및 코호트 관리를 위한 통합 플랫폼입니다.
                     </p>
+
+                    {/* 데이터 분석 시작하기 버튼 */}
                     <div className="mt-8 space-y-4">
                         <Link href="/analysis" className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                             데이터 분석 시작하기
                         </Link>
                     </div>
+
+                    {/* 👇 관리자 페이지로 이동 버튼 추가 */}
+                    <div className="mt-4 space-y-4">
+                        <Link href="/admin" className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                            관리자 페이지로 이동
+                        </Link>
+                    </div>
+
+                    {/* 주요 기능 섹션 */}
                     <div className="mt-12">
                         <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4">주요 기능</h2>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -41,6 +52,7 @@ export default function HomePage() {
                             </div>
                         </div>
                     </div>
+
                 </div>
             </div>
         </Layout>

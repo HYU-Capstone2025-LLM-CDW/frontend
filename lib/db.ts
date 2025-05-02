@@ -1,11 +1,9 @@
 import { Pool } from 'pg';
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: parseInt(process.env.DB_PORT || '5432'),
+export const db = new Pool({
+  host: process.env.PGHOST,
+  port: Number(process.env.PGPORT),
+  database: process.env.PGDATABASE,
+  user: process.env.PGUSER,
+  password: process.env.PGPASSWORD,
 });
-
-export default pool;

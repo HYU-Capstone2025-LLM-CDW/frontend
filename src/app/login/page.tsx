@@ -12,16 +12,32 @@ export default function Page() {
         const { name, value, type, checked } = e.target;
         setFormData((prev) => ({
             ...prev,
-            [name]: type === "checkbox" ? checked: value
+            [name]: type === "checkbox" ? checked : value
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        console.log("로그인 요청:", formData);
-        // 로그인 요청 처리 로직 (API 호출 등)
-    };
+        try {
+            const response = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(formData),
+            });
 
+            const data = await response.json();
+            if (response.ok) {
+                alert(data.message);
+                // 성공 시 리다이렉트
+                window.location.href = "/";
+            } else {
+                alert(data.message);
+            }
+        } catch (err) {
+            console.error("로그인 중 오류:", err);
+            alert("서버 오류가 발생했습니다.");
+        }
+    };
 
     return (
         <div className="flex justify-center items-center min-h-screen bg-gray-50">

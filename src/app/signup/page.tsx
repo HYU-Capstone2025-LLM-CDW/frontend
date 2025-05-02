@@ -1,109 +1,102 @@
 "use client";
-
 import { useState } from "react";
 
-export default function Page() {
-    const [formData, setFormData] = useState({
-        name: "",
-        email: "",
-        department: "",
-        institution: "",
-        password: "",
-        agree: false,
+export default function SignupPage() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [employeeNumber, setEmployeeNumber] = useState("");
+
+  const handleSignup = async () => {
+    const response = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password, employeeNumber }),
     });
+    const data = await response.json();
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value, type, checked } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            [name]: type === "checkbox" ? checked: value
-        }));
-    };
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!formData.agree) {
-            alert("약관에 동의해야 회원가입이 가능합니다.");
-            return;
-        }
-        console.log("회원가입 요청:", formData);
-        // 회원가입 요청 처리 로직 (API 호출 등)
-    };
+    // ✅ 알림 메시지에 승인 필요 안내 포함
+    alert(`${data.message}\n\n관리자의 승인이 완료된 후 로그인하실 수 있습니다.`);
+  };
 
-    return (
-        <div className="flex justify-center items-center min-h-screen bg-gray-50">
-            <form
-                onSubmit={handleSubmit}
-                className="bg-white shadow-md rounded px-8 pt-6 pb-8 w-full max-w-md"
-            >
-                <h2 className="text-2xl font-bold mb-6 text-center">회원가입</h2>
+  return (
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "#f5f5f5"
+    }}>
+      <div style={{
+        backgroundColor: "white",
+        padding: "40px",
+        borderRadius: "12px",
+        boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+        width: "350px",
+        textAlign: "center"
+      }}>
+        <h2 style={{ marginBottom: "16px", fontSize: "24px", color: "#333" }}>회원가입</h2>
 
-                <label className="block text-gray-700 mb-2">이름</label>
-                <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="mb-4 w-full px-3 py-2 border rounded"
-                    required
-                />
+        {/* ✅ 승인 안내 메시지 박스 */}
+        <p style={{
+          fontSize: "14px",
+          color: "#555",
+          marginBottom: "24px"
+        }}>
+          가입 후 관리자의 승인을 받은 후에<br />로그인이 가능합니다.
+        </p>
 
-                <label className="block text-gray-700 mb-2">이메일</label>
-                <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="mb-4 w-full px-3 py-2 border rounded"
-                    required
-                />
+        <input
+          placeholder="이름"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={inputStyle}
+        />
+        <input
+          placeholder="이메일"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={inputStyle}
+        />
+        <input
+          placeholder="비밀번호"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={inputStyle}
+        />
+        <input
+          placeholder="병원 사번"
+          value={employeeNumber}
+          onChange={(e) => setEmployeeNumber(e.target.value)}
+          style={inputStyle}
+        />
 
-                <label className="block text-gray-700 mb-2">기관명</label>
-                <select name="institution" className="mb-4 w-full px-1.5 py-2 border rounded">
-                    <option value="">기관을 선택하세요</option>
-                    <option>한양대학교병원</option>
-                    <option>한양대학교 구리병원</option>
-                </select>
-
-
-                <label className="block text-gray-700 mb-2">부서</label>
-                <input
-                    type="text"
-                    name="department"
-                    value={formData.department}
-                    onChange={handleChange}
-                    className="mb-4 w-full px-3 py-2 border rounded"
-                />
-
-                <label className="block text-gray-700 mb-2">비밀번호</label>
-                <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="mb-4 w-full px-3 py-2 border rounded"
-                    required
-                />
-
-                <div className="flex items-center mb-4">
-                    <input
-                        type="checkbox"
-                        name="agree"
-                        checked={formData.agree}
-                        onChange={handleChange}
-                        className="mr-2"
-                    />
-                    <label className="text-sm text-gray-600">
-                        <span className="font-medium text-gray-800">이용약관</span>에 동의합니다.
-                    </label>
-                </div>
-
-                <button
-                    type="submit"
-                    className="w-full bg-black text-white py-2 rounded hover:bg-gray-800 transition"
-                >
-                    회원가입
-                </button>
-            </form>
-        </div>
-    );
+        <button onClick={handleSignup} style={buttonStyle}>
+          회원가입
+        </button>
+      </div>
+    </div>
+  );
 }
+
+const inputStyle = {
+  width: "100%",
+  padding: "12px 16px",
+  marginBottom: "16px",
+  border: "1px solid #ccc",
+  borderRadius: "8px",
+  fontSize: "16px"
+};
+
+const buttonStyle = {
+  width: "100%",
+  padding: "12px 16px",
+  backgroundColor: "#4CAF50",
+  color: "white",
+  border: "none",
+  borderRadius: "8px",
+  fontSize: "16px",
+  cursor: "pointer",
+  marginTop: "8px"
+};
