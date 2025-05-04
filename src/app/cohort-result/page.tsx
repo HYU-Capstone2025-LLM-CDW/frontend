@@ -35,26 +35,24 @@ export default function CohortResultPage() {
             try {
                 setLoading(true);
                 setError("");
-                const res = await fetch("/api/chart-data", {
+                const res = await fetch(process.env.NEXT_PUBLIC_OPEN_API+"/sql-executor/", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ sql }),
                 });
-                const json = await res.json();
-                const parsed = typeof json.message === "string"
-                    ? (() => {
-                        try {
-                            return JSON.parse(json.message);
-                        } catch {
-                            throw new Error(json.message);
-                        }
-                    })()
-                    : json.message;
-                if (Array.isArray(parsed)) {
-                    setData(parsed);
-                } else {
-                    setError("데이터 형식이 올바르지 않습니다.");
+                const result = await res.json();
+
+                console.log("📦 DuckDNS 응답 전체:", JSON.stringify(result, null, 2));
+
+                if (!res.ok || !Array.isArray(result.data)) {
+                    const errorMsg =
+                        result?.error ||
+                        result?.detail?.[0]?.msg ||
+                        `서버 오류: HTTP ${res.status}`;
+                    throw new Error(errorMsg);
                 }
+
+                setData(result.data);
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : "알 수 없는 오류";
                 setError("❌ " + message);

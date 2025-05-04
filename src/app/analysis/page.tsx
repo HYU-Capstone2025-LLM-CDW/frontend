@@ -25,16 +25,29 @@ export default function AnalysisPage() {
             const queryToRun = customQuery || sql;
             setCurrentChartType("table");
 
-            const response = await fetch("/api/chart-data", {
+            const response = await fetch(process.env.NEXT_PUBLIC_OPEN_API+"/sql-executor/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sql: queryToRun }),
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ sql: queryToRun })
             });
 
-            if (!response.ok) throw new Error("쿼리 요청 실패");
-            const result = await response.json();
+            const result: { data?: Record<string, string | number | null>[]; error?: string; detail?: { msg?: string }[] } = await response.json();
 
-            const cleanedData = result.data.map((row: any) => {
+            console.log("📦 DuckDNS 응답 전체:", JSON.stringify(result, null, 2));
+
+            if (!response.ok || !Array.isArray(result.data)) {
+                const errorMsg =
+                    result?.error ||
+                    result?.detail?.[0]?.msg ||
+                    `서버 오류: HTTP ${response.status}`;
+                console.error("❌ SQL 실행 오류:", errorMsg);
+                alert(`❌ 쿼리 실패: ${errorMsg}`);
+                return;
+            }
+
+            const cleanedData: ChartRow[] = result.data.map((row) => {
                 const cleanedRow: ChartRow = {};
                 for (const key in row) {
                     cleanedRow[key] = row[key] !== null ? row[key] : "N/A";
@@ -43,11 +56,10 @@ export default function AnalysisPage() {
             });
 
             if (cleanedData.length === 0) {
-                alert("조회된 데이터가 없습니다.");
+                alert("📭 조회된 데이터가 없습니다.");
                 return;
             }
 
-            // 새 쿼리 실행시 상태 초기화
             setXAxis("");
             setYAxis("");
             setZAxis("");
@@ -56,13 +68,14 @@ export default function AnalysisPage() {
             setGlobalData(cleanedData);
             setColumnNames(
                 Object.keys(cleanedData[0]).filter(key =>
-                    cleanedData.some((row: any) => row[key] !== "N/A")
+                    cleanedData.some(row => row[key] !== "N/A")
                 )
             );
 
             setCurrentChartType("table");
-        } catch (error) {
-            console.error("Error:", error);
+        } catch (error: any) {
+            console.error("❌ 요청 실패:", error);
+            alert(`❌ 네트워크 오류: ${error.message || "알 수 없는 오류"}`);
         }
     };
 
@@ -96,10 +109,9 @@ export default function AnalysisPage() {
     };
 
     useEffect(() => {
-        if (currentChartType === "table" && globalData.length > 0) {
-            renderTable(filteredData);
-        }
-    }, [globalData, limit, currentChartType]);
+        if (!currentChartType || currentChartType === "table") return;
+        renderChart(currentChartType);
+    }, [xAxis, yAxis, zAxis, limit]);
 
     const renderTable = (data: ChartRow[]) => {
         if (!chartRef.current) return;
@@ -210,11 +222,6 @@ export default function AnalysisPage() {
         document.body.removeChild(link);
     };
 
-    useEffect(() => {
-        if (!currentChartType || currentChartType === "table") return;
-        renderChart(currentChartType);
-    }, [xAxis, yAxis, zAxis, limit]);
-
     const renderSummaryTooltip = (col: string) => {
         const summary = calculateSummary(col);
         if (!summary) return null;
@@ -251,21 +258,21 @@ export default function AnalysisPage() {
             </div>
 
             <div className="flex justify-center gap-4 flex-wrap">
-                {['xAxis', 'yAxis', currentChartType === 'bar3D' ? 'zAxis' : null].filter(Boolean).map(axis => {
-                    const value = axis === 'xAxis' ? xAxis : axis === 'yAxis' ? yAxis : zAxis;
+                {["xAxis", "yAxis", currentChartType === "bar3D" ? "zAxis" : null].filter(Boolean).map(axis => {
+                    const value = axis === "xAxis" ? xAxis : axis === "yAxis" ? yAxis : zAxis;
                     return (
                         <div
-                            key={axis}
+                            key={axis as string}
                             className="relative"
-                            onMouseEnter={() => setHoveredAxis(axis!)}
+                            onMouseEnter={() => setHoveredAxis(axis as string)}
                             onMouseLeave={() => setHoveredAxis(null)}
                         >
                             <select
                                 value={value}
                                 onChange={(e) => {
                                     const val = e.target.value;
-                                    if (axis === 'xAxis') setXAxis(val);
-                                    else if (axis === 'yAxis') setYAxis(val);
+                                    if (axis === "xAxis") setXAxis(val);
+                                    else if (axis === "yAxis") setYAxis(val);
                                     else setZAxis(val);
                                 }}
                                 className="border rounded px-3 py-2"
@@ -317,7 +324,6 @@ export default function AnalysisPage() {
 
             <div ref={chartRef} id="chart" className="relative w-4/5 h-[500px] mx-auto my-4" />
 
-            {/* 다운로드 버튼 */}
             <div className="absolute top-4 right-6 flex flex-row gap-2 z-20">
                 <button
                     onClick={downloadChartImage}
