@@ -53,6 +53,10 @@ export default function CohortResultPage() {
                     throw new Error(`422 오류: ${msg}`);
                 }
 
+                if (res.status === 400) {
+                    throw new Error("❌ 입력한 SQL 문에 문법 오류가 있어 실행할 수 없습니다.");
+                }
+
                 if (!res.ok || result.error) {
                     throw new Error(result.error || `서버 오류: HTTP ${res.status}`);
                 }
@@ -64,7 +68,7 @@ export default function CohortResultPage() {
                 setData(result.data);
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : "알 수 없는 오류";
-                setError("❌ " + message);
+                setError(message);
             } finally {
                 setLoading(false);
             }

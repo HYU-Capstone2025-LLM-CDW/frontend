@@ -19,6 +19,7 @@ export default function AnalysisPage() {
     const [columnNames, setColumnNames] = useState<string[]>([]);
     const [currentChartType, setCurrentChartType] = useState<string | null>(null);
     const [hoveredAxis, setHoveredAxis] = useState<string | null>(null);
+    const [error, setError] = useState<string>("");
 
     const fetchChartData = async (customQuery?: string) => {
         try {
@@ -42,6 +43,10 @@ export default function AnalysisPage() {
                 throw new Error(`422 오류: ${msg}`);
             }
 
+            if (response.status === 400) {
+                throw new Error("❌ 입력한 SQL 문에 문법 오류가 있어 실행할 수 없습니다.");
+            }
+
             if (!response.ok || result.error) {
                 throw new Error(result.error || `서버 오류: HTTP ${response.status}`);
             }
@@ -50,6 +55,7 @@ export default function AnalysisPage() {
                 throw new Error("데이터 형식이 올바르지 않습니다.");
             }
 
+            // 초기화
             setXAxis("");
             setYAxis("");
             setZAxis("");
@@ -63,10 +69,11 @@ export default function AnalysisPage() {
             );
 
             setCurrentChartType("table");
+            setError("");
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "알 수 없는 오류";
             console.error("SQL 실행 오류:", message);
-            alert("❌ SQL 실행 오류: " + message);
+            setError("❌ SQL 실행 오류: " + message);
         }
     };
 
@@ -225,6 +232,12 @@ export default function AnalysisPage() {
                 </button>
             </div>
 
+            {error && (
+                <div className="text-red-600 font-semibold mb-4">
+                    {error}
+                </div>
+            )}
+
             <div className="flex justify-center gap-4 flex-wrap">
                 {["xAxis", "yAxis", currentChartType === "bar3D" ? "zAxis" : null].filter(Boolean).map(axis => {
                     const value = axis === "xAxis" ? xAxis : axis === "yAxis" ? yAxis : zAxis;
@@ -322,4 +335,3 @@ function ChartButton({ label, onClick }: { label: React.ReactNode; onClick: () =
         </button>
     );
 }
-
