@@ -5,7 +5,7 @@ import 'echarts-gl';
 import * as echarts from "echarts";
 
 interface ChartRow {
-    [key: string]: string | number;
+    [key: string]: string | number | null;
 }
 
 export default function AnalysisPage() {
@@ -25,57 +25,49 @@ export default function AnalysisPage() {
             const queryToRun = customQuery || sql;
             setCurrentChartType("table");
 
-            const response = await fetch(process.env.NEXT_PUBLIC_OPEN_API+"/sql-executor/", {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_OPEN_API}/sql-executor/`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
                 },
                 body: JSON.stringify({ sql: queryToRun })
             });
 
-            const result: { data?: Record<string, string | number | null>[]; error?: string; detail?: { msg?: string }[] } = await response.json();
-
+            const result: { data?: ChartRow[]; error?: string; detail?: any } = await response.json();
             console.log("📦 DuckDNS 응답 전체:", JSON.stringify(result, null, 2));
 
-            if (!response.ok || !Array.isArray(result.data)) {
-                const errorMsg =
-                    result?.error ||
-                    result?.detail?.[0]?.msg ||
-                    `서버 오류: HTTP ${response.status}`;
-                console.error("❌ SQL 실행 오류:", errorMsg);
-                alert(`❌ 쿼리 실패: ${errorMsg}`);
-                return;
+            if (response.status === 422) {
+                const msg = result?.detail?.[0]?.msg || "유효성 오류 발생";
+                throw new Error(`422 오류: ${msg}`);
             }
 
-            const cleanedData: ChartRow[] = result.data.map((row) => {
-                const cleanedRow: ChartRow = {};
-                for (const key in row) {
-                    cleanedRow[key] = row[key] !== null ? row[key] : "N/A";
-                }
-                return cleanedRow;
-            });
-
-            if (cleanedData.length === 0) {
-                alert("📭 조회된 데이터가 없습니다.");
-                return;
+            if (!response.ok || result.error) {
+                throw new Error(result.error || `서버 오류: HTTP ${response.status}`);
             }
 
+            if (!Array.isArray(result.data)) {
+                throw new Error("데이터 형식이 올바르지 않습니다.");
+            }
+
+            // 초기화
             setXAxis("");
             setYAxis("");
             setZAxis("");
             setLimit(undefined);
 
-            setGlobalData(cleanedData);
+            setGlobalData(result.data);
             setColumnNames(
-                Object.keys(cleanedData[0]).filter(key =>
-                    cleanedData.some(row => row[key] !== "N/A")
+                Object.keys(result.data[0]).filter(key =>
+                    result.data!.some(row => row[key] !== "N/A")
                 )
             );
 
             setCurrentChartType("table");
-        } catch (error: any) {
-            console.error("❌ 요청 실패:", error);
-            alert(`❌ 네트워크 오류: ${error.message || "알 수 없는 오류"}`);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "알 수 없는 오류";
+            console.error("SQL 실행 오류:", message);
+            alert("❌ SQL 실행 오류: " + message);
         }
     };
 
@@ -113,24 +105,6 @@ export default function AnalysisPage() {
         renderChart(currentChartType);
     }, [xAxis, yAxis, zAxis, limit]);
 
-    const renderTable = (data: ChartRow[]) => {
-        if (!chartRef.current) return;
-        const validColumns = columnNames.filter((key) => data.some((row) => row[key] !== "N/A"));
-
-        const tableHtml = `
-            <table class="w-full border">
-                <thead>
-                    <tr>${validColumns.map((key) => `<th class='border px-2 py-1'>${key}</th>`).join("")}</tr>
-                </thead>
-                <tbody>
-                    ${data.map(row => `<tr>${validColumns.map(key => `<td class='border px-2 py-1'>${row[key]}</td>`).join("")}</tr>`).join("")}
-                </tbody>
-            </table>
-        `;
-
-        chartRef.current.innerHTML = tableHtml;
-    };
-
     const renderChart = (type: string) => {
         if (!chartRef.current || !filteredData.length) return;
         if (echarts.getInstanceByDom(chartRef.current)) {
@@ -153,23 +127,6 @@ export default function AnalysisPage() {
                 grid3D: { boxWidth: 100, boxDepth: 80, viewControl: { projection: "orthographic", autoRotate: true } },
                 series: [{ type: "bar3D", data: data.map(item => ({ value: item })) }]
             });
-        } else if (type === "pie") {
-            const pieData = filteredData.map(row => ({
-                name: row[xAxis],
-                value: isNaN(Number(row[yAxis])) ? 0 : Number(row[yAxis]),
-            }));
-
-            chart.setOption({
-                title: { text: "pie 차트", left: "center" },
-                tooltip: { trigger: "item", formatter: "{a} <br/>{b} : {c} ({d}%)" },
-                series: [{
-                    name: yAxis,
-                    type: "pie",
-                    radius: "55%",
-                    center: ["50%", "50%"],
-                    data: pieData
-                }]
-            });
         } else {
             const xData = filteredData.map(row => row[xAxis]);
             const yData = filteredData.map(row => isNaN(Number(row[yAxis])) ? 0 : Number(row[yAxis]));
@@ -182,6 +139,20 @@ export default function AnalysisPage() {
                 series: [{ type, data: yData }]
             });
         }
+    };
+
+    const renderTable = (data: ChartRow[]) => {
+        if (!chartRef.current) return;
+        const validColumns = columnNames.filter(key => data.some(row => row[key] !== "N/A"));
+
+        const tableHtml = `
+      <table class="w-full border">
+        <thead><tr>${validColumns.map(key => `<th class='border px-2 py-1'>${key}</th>`).join("")}</tr></thead>
+        <tbody>${data.map(row => `<tr>${validColumns.map(key => `<td class='border px-2 py-1'>${row[key]}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table>
+    `;
+
+        chartRef.current.innerHTML = tableHtml;
     };
 
     const downloadChartImage = () => {
@@ -206,9 +177,7 @@ export default function AnalysisPage() {
         }
 
         const header = Object.keys(filteredData[0]);
-        const rows = filteredData.map(row =>
-            header.map(h => `"${String(row[h] ?? "")}"`).join(",")
-        );
+        const rows = filteredData.map(row => header.map(h => `"${String(row[h] ?? "")}"`).join(","));
         const csvContent = [header.join(","), ...rows].join("\n");
 
         const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -242,13 +211,13 @@ export default function AnalysisPage() {
             <h1 className="text-3xl font-bold mt-6">CDW 데이터 시각화</h1>
 
             <div className="w-4/5 mx-auto my-4 flex flex-col items-end bg-white p-4 rounded-lg">
-                <textarea
-                    rows={4}
-                    placeholder="SQL 쿼리를 입력하세요."
-                    className="w-full mb-2 border rounded p-2"
-                    value={sql}
-                    onChange={(e) => setSql(e.target.value)}
-                />
+        <textarea
+            rows={4}
+            placeholder="SQL 쿼리를 입력하세요."
+            className="w-full mb-2 border rounded p-2"
+            value={sql}
+            onChange={(e) => setSql(e.target.value)}
+        />
                 <button
                     onClick={() => fetchChartData()}
                     className="px-4 py-2 border rounded bg-gray-100 hover:bg-gray-200 active:bg-gray-300"
@@ -262,9 +231,9 @@ export default function AnalysisPage() {
                     const value = axis === "xAxis" ? xAxis : axis === "yAxis" ? yAxis : zAxis;
                     return (
                         <div
-                            key={axis as string}
+                            key={axis!}
                             className="relative"
-                            onMouseEnter={() => setHoveredAxis(axis as string)}
+                            onMouseEnter={() => setHoveredAxis(axis!)}
                             onMouseLeave={() => setHoveredAxis(null)}
                         >
                             <select
@@ -307,8 +276,8 @@ export default function AnalysisPage() {
                         placeholder="숫자 입력"
                     />
                     <span className="ml-4 text-gray-500">
-                        총 {globalData.length}개 데이터 조회됨
-                    </span>
+            총 {globalData.length}개 데이터 조회됨
+          </span>
                 </div>
             </div>
 
