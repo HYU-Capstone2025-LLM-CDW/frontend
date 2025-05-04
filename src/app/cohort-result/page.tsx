@@ -36,11 +36,11 @@ export default function CohortResultPage() {
                 setLoading(true);
                 setError("");
 
-                const res = await fetch(`${process.env.NEXT_PUBLIC_OPEN_API}/sql-executor/`, {
+                const res = await fetch("/api/sql-execute", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "Accept": "application/json"
+                        Accept: "application/json"
                     },
                     body: JSON.stringify({ sql })
                 });

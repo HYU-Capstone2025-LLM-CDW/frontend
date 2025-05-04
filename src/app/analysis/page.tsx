@@ -25,7 +25,7 @@ export default function AnalysisPage() {
             const queryToRun = customQuery || sql;
             setCurrentChartType("table");
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_OPEN_API}/sql-executor/`, {
+            const response = await fetch("/api/sql-execute", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -50,7 +50,6 @@ export default function AnalysisPage() {
                 throw new Error("데이터 형식이 올바르지 않습니다.");
             }
 
-            // 초기화
             setXAxis("");
             setYAxis("");
             setZAxis("");
@@ -211,13 +210,13 @@ export default function AnalysisPage() {
             <h1 className="text-3xl font-bold mt-6">CDW 데이터 시각화</h1>
 
             <div className="w-4/5 mx-auto my-4 flex flex-col items-end bg-white p-4 rounded-lg">
-        <textarea
-            rows={4}
-            placeholder="SQL 쿼리를 입력하세요."
-            className="w-full mb-2 border rounded p-2"
-            value={sql}
-            onChange={(e) => setSql(e.target.value)}
-        />
+                <textarea
+                    rows={4}
+                    placeholder="SQL 쿼리를 입력하세요."
+                    className="w-full mb-2 border rounded p-2"
+                    value={sql}
+                    onChange={(e) => setSql(e.target.value)}
+                />
                 <button
                     onClick={() => fetchChartData()}
                     className="px-4 py-2 border rounded bg-gray-100 hover:bg-gray-200 active:bg-gray-300"
@@ -276,8 +275,8 @@ export default function AnalysisPage() {
                         placeholder="숫자 입력"
                     />
                     <span className="ml-4 text-gray-500">
-            총 {globalData.length}개 데이터 조회됨
-          </span>
+                        총 {globalData.length}개 데이터 조회됨
+                    </span>
                 </div>
             </div>
 
@@ -323,3 +322,4 @@ function ChartButton({ label, onClick }: { label: React.ReactNode; onClick: () =
         </button>
     );
 }
+
